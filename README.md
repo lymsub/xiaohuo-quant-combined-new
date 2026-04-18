@@ -1,6 +1,8 @@
-# 🔥 高客秘书整合版 v2.7
+# 🔥 高客秘书整合版 v2.8
 
 > 智能投资助手 - 股票筛选、个股分析、收益跟踪、投资报告、早报视频五大能力
+> 
+> 📦 新仓库：[lymsub/xiaohuo-quant-combined-new](https://github.com/lymsub/xiaohuo-quant-combined-new)
 
 ---
 
