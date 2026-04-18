@@ -1,0 +1,23 @@
+# 高客秘书 - 项目依赖
+# 量化分析与数据获取
+akshare>=1.12.0
+pandas>=2.0.0
+numpy>=1.24.0
+tushare>=1.2.89
+
+# 数据库与缓存
+sqlite3
+
+# 视频生成相关
+volcenginesdkarkruntime>=0.0.1
+edge-tts>=6.1.0
+
+# HTTP请求
+urllib3>=1.26.0
+requests>=2.31.0
+
+# 定时任务
+schedule>=1.2.0
+
+# 其他工具
+python-dotenv>=1.0.0

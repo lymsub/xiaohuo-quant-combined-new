@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data & Cache
+*.db
+*.sqlite3
+*.csv
+*.json
+!custom_config.json
+data/
+cache/
+
+# Output
+output/
+history/
+temp_*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Token & Secrets
+.env
+token.txt
+token.env
+*.token
