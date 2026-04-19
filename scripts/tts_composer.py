@@ -9,6 +9,23 @@ import subprocess
 import math
 
 # 配置区域
+def get_edge_tts_path():
+    """获取edge-tts路径，按优先级查找"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # 1. 先尝试项目venv
+    venv_path = os.path.join(script_dir, "venv/bin/edge-tts")
+    if os.path.exists(venv_path):
+        return venv_path
+    # 2. 再尝试系统PATH中的edge-tts
+    try:
+        result = subprocess.run(["which", "edge-tts"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except:
+        pass
+    # 3. 最后尝试直接调用edge-tts
+    return "edge-tts"
+
 CONFIG = {
     # TTS配置
     "voice": "zh-CN-XiaoxiaoNeural",  # 中文女声，可切换其他音色
@@ -21,8 +38,8 @@ CONFIG = {
     "output_dir": os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output", "final"),
     "default_final_name": "morning_report_final.mp4",
     
-    # Edge TTS路径（已自动安装到虚拟环境）
-    "edge_tts_path": os.path.join(os.path.dirname(os.path.abspath(__file__)), "tts_venv/bin/edge-tts")
+    # Edge TTS路径（自动查找）
+    "edge_tts_path": get_edge_tts_path()
 }
 
 def init_dirs():
@@ -53,11 +70,23 @@ def text_to_speech(text, output_path=None):
     if CONFIG["speech_rate"] != "+0%":
         cmd.extend(["--rate", CONFIG["speech_rate"]])
     
-    print("正在生成语音...")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"TTS生成失败：{result.stderr}")
-        raise Exception(f"语音合成失败：{result.stderr}")
+    print(f"正在使用 {CONFIG['edge_tts_path']} 生成语音...")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            error_msg = f"TTS生成失败：{result.stderr}"
+            print(error_msg)
+            print("\n💡 提示：请确保已安装edge-tts")
+            print("   方法1: 在项目venv中安装: scripts/venv/bin/pip install edge-tts")
+            print("   方法2: 使用系统安装: pip install edge-tts")
+            raise Exception(error_msg)
+    except FileNotFoundError:
+        error_msg = f"找不到edge-tts命令，路径: {CONFIG['edge_tts_path']}"
+        print(error_msg)
+        print("\n💡 请先安装edge-tts:")
+        print("   方法1: 在项目venv中安装: scripts/venv/bin/pip install edge-tts")
+        print("   方法2: 使用系统安装: pip install edge-tts")
+        raise Exception(error_msg)
     
     # 获取音频时长
     duration_cmd = [
