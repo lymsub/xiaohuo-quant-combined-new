@@ -736,10 +736,22 @@ class QuantAnalyzer:
             return str(d)[:10]
         
         def format_value(v):
+            if v is None:
+                return 0.0
             if hasattr(v, 'item'):
-                return float(v.item())
+                try:
+                    val = float(v.item())
+                    return val if val == val else 0.0  # 检查NaN
+                except:
+                    return 0.0
             elif isinstance(v, (np.integer, np.floating)):
-                return float(v)
+                try:
+                    val = float(v)
+                    return val if val == val else 0.0  # 检查NaN
+                except:
+                    return 0.0
+            elif isinstance(v, float):
+                return v if v == v else 0.0  # 检查NaN
             return v
         
         report = {
@@ -752,7 +764,7 @@ class QuantAnalyzer:
                 "最新价": round(format_value(latest['close']), 2),
                 "涨跌额": round(format_value(latest['close'] - prev['close']), 2),
                 "涨跌幅": round(format_value((latest['close'] - prev['close']) / prev['close'] * 100), 2),
-                "成交量": int(format_value(latest['vol'])) if 'vol' in latest and latest['vol'] is not None else 0,
+                "成交量": int(format_value(latest['vol'])) if 'vol' in latest and latest['vol'] is not None and not (isinstance(latest['vol'], float) and latest['vol'] != latest['vol']) else 0,
                 "成交额": round(format_value(latest['amount']) / 10000, 2) if 'amount' in latest else None
             },
             
@@ -884,8 +896,20 @@ def main():
             print(f"❌ 分析失败：{result['error']}")
             sys.exit(1)
         
-        # 输出结果
-        output = json.dumps(result, ensure_ascii=False, indent=2)
+        # 输出结果（按新架构规范格式化）
+        formatted_result = {
+            "success": True,
+            "report_type": "stock_analysis",
+            "template_name": "stock_analysis",
+            "data": result,
+            "metadata": {
+                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "data_source": "本地数据库+新浪/腾讯/AkShare",
+                "cached": False
+            }
+        }
+        
+        output = json.dumps(formatted_result, ensure_ascii=False, indent=2)
         
         if args.output:
             with open(args.output, 'w', encoding='utf-8') as f:

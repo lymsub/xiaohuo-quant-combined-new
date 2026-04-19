@@ -13,7 +13,7 @@
 
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
@@ -451,16 +451,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  python recommend_stocks.py                    # 推荐前10只
+  python recommend_stocks.py                    # 推荐前10只（文本模式）
   python recommend_stocks.py --n 20            # 推荐前20只
-  python recommend_stocks.py --output rec.json  # 保存到指定文件
+  python recommend_stocks.py --output rec.json  # 保存到指定文件（文本模式）
+  python recommend_stocks.py --output json     # 输出JSON格式
+  python recommend_stocks.py --output json --output-file rec.json  # 保存JSON到文件
         """
     )
     
     parser.add_argument('--n', type=int, default=5, 
                         help='推荐数量（默认5只）')
     parser.add_argument('--output', type=str, 
-                        help='输出文件路径（JSON格式）')
+                        help='输出方式（默认文本，json为JSON格式）')
+    parser.add_argument('--output-file', type=str, 
+                        help='JSON输出文件路径')
     
     args = parser.parse_args()
     
@@ -470,7 +474,41 @@ def main():
     # 获取推荐
     recommendations = recommender.recommend(n=args.n)
     
-    # 打印结果
+    # 检查是否是交易日
+    is_trading, message = is_trading_day()
+    
+    # JSON输出模式
+    if args.output == 'json':
+        # 构建标准化JSON
+        result = {
+            'success': True,
+            'report_type': 'opportunity_scan',
+            'template_name': 'opportunity_scan',
+            'data': {
+                '日期': datetime.now().strftime('%Y-%m-%d'),
+                'is_trading': is_trading,
+                'data_source_date': datetime.now().strftime('%Y-%m-%d') if is_trading 
+                               else (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
+                '推荐列表': recommendations
+            },
+            'metadata': {
+                'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'data_source': '新浪财经 + 本地缓存',
+                'cached': True
+            }
+        }
+        
+        output_json = json.dumps(result, ensure_ascii=False, indent=2)
+        
+        if args.output_file:
+            with open(args.output_file, 'w', encoding='utf-8') as f:
+                f.write(output_json)
+            print(f"✅ 推荐结果已保存到: {args.output_file}")
+        
+        print(output_json)
+        return
+    
+    # 兼容旧的文本模式
     print_recommendations(recommendations)
     
     # 保存结果

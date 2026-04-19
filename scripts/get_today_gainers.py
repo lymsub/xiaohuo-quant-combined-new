@@ -4,11 +4,13 @@
 新浪接口完全免费无限制，速度快，稳定性高，彻底解决网络连接问题
 修复非交易时段涨跌幅显示为0的bug，自动降级到日线接口获取数据
 新增缓存机制：交易时段缓存10分钟，非交易时段读取15:10预拉取缓存
+新增JSON输出模式：--output json --output-file result.json
 """
 
 import os
 import json
 import time
+import argparse
 from pathlib import Path
 
 import sys
@@ -16,7 +18,7 @@ import re
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -297,15 +299,14 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
         
         # 非交易时段，如果涨跌幅为0，自动从日线接口获取真实涨跌幅
         if not trading_hours and abs(change_pct) < 0.01:
-            if data_source is None:
-                data_source = get_data_manager()
+            if data_source is None:              data_source = get_data_manager()
             try:
                 end_date = datetime.now().date()
                 start_date = end_date - timedelta(days=1)
                 start_str = start_date.strftime('%Y%m%d')
                 end_str = end_date.strftime('%Y%m%d')
                 df, _ = data_source.get_daily_quotes(ts_code, start_str, end_str)
-                if df is not None and len(df) >=2:
+                if df is not None and len(df)>=2:
                     prev_close_daily = df.iloc[-2]['close']
                     curr_close_daily = df.iloc[-1]['close']
                     if prev_close_daily > 0:
@@ -334,57 +335,117 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
     return df
 
 
-def main():
-    print("=" * 80)
-    print("📊 沪深300涨幅榜（稳定版）")
-    print("=" * 80)
-    print()
-    
-    # 检查是否是交易日
+def generate_json_output(df: pd.DataFrame) -> Dict[str, Any]:
+    """生成符合规范的JSON输出"""
+    now = datetime.now()
     is_trading, msg = is_trading_day()
-    print(f"📅 {msg}")
-    print()
     
-    print("📈 正在获取行情数据...")
+    # 格式化涨幅榜数据
+    gainers_list = []
+    for i, (_, row) in enumerate(df.head(50).iterrows(), 1):
+        gainers_list.append({
+            '排名': i,
+            '代码': format_stock_code(row['code']),
+            '名称': row['name'],
+            '最新价': round(float(row['price']), 2),
+            '涨跌幅': round(float(row['change_pct']), 2),
+            '成交量': round(float(row['volume']), 2)
+        })
+    
+    # 构造完整JSON
+    result = {
+        'success': True,
+        'report_type': 'opportunity_scan',
+        'template_name': 'opportunity_scan',
+        'data': {
+            '日期': now.strftime('%Y-%m-%d'),
+            'is_trading': is_trading,
+            'data_source_date': now.strftime('%Y-%m-%d') if is_trading else (now - timedelta(days=1)).strftime('%Y-%m-%d'),
+            '涨幅榜': gainers_list
+        },
+        'metadata': {
+            'generated_at': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'data_source': '新浪财经+统一数据源管理器',
+            'cached': _load_cache() is not None
+        }
+    }
+    
+    return result
+
+
+def main():
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='获取沪深300涨幅榜')
+    parser.add_argument('--output', type=str, default='text', choices=['text', 'json'],
+                        help='输出格式: text(文本) 或 json(结构化数据)')
+    parser.add_argument('--output-file', type=str, default=None,
+                        help='JSON输出文件路径')
+    args = parser.parse_args()
+    
+    # 获取数据
     df = get_today_gainers(count=50)
     
-    print(f"✅ 成功获取 {len(df)} 只股票的行情数据")
-    print()
+    # 根据输出格式处理
+    if args.output == 'json':
+        # JSON输出模式
+        result = generate_json_output(df)
+        
+        if args.output_file:
+            with open(args.output_file, 'w', encoding='utf-8') as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
     
-    if not is_trading:
-        print("⚠️  当前为非交易时段，数据为最近一个交易日的正式收盘数据")
     else:
-        print("⚠️  实时行情数据，仅供参考")
-    
-    print()
-    print("=" * 80)
-    print("🏆 涨幅榜 - 前10只")
-    print("=" * 80)
-    print(f"{'排名':<6}{'代码':<12}{'名称':<12}{'最新价':<12}{'涨跌幅':<16}{'成交量':<12}")
-    print("-" * 80)
-    
-    for i, (_, row) in enumerate(df.head(10).iterrows(), 1):
-        status = "🟢" if row['change_pct'] > 0 else "🔴" if row['change_pct'] < 0 else "⚪"
-        # 强制股票代码为字符串格式输出
-        code_str = format_stock_code(row['code'])
-        print(f"{i:<6}{code_str:<12}{row['name']:<12}¥{row['price']:<11.2f}{status} {row['change_pct']:+.2f}% {row['volume']:<10.0f}万手")
-    
-    # 保存结果前确保股票代码列是字符串格式
-    df['code'] = df['code'].apply(format_stock_code)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    save_path = f"today_gainers_{timestamp}.csv"
-    df.to_csv(save_path, index=False, encoding='utf-8-sig')
-    print()
-    print(f"💾 完整结果已保存到: {Path(__file__).parent / save_path}")
-    
-    print()
-    print("=" * 80)
-    print("⚠️  重要提示")
-    print("=" * 80)
-    print("   - 非交易时段数据为最近一个交易日的正式收盘数据")
-    print("   - 本榜单为沪深300成分股涨幅榜，非全市场涨幅榜")
-    print("   - 投资有风险，入市需谨慎")
-    print("=" * 80)
+        # 兼容旧的文本模式
+        print("=" * 80)
+        print("📊 沪深300涨幅榜（稳定版）")
+        print("=" * 80)
+        print()
+        
+        # 检查是否是交易日
+        is_trading, msg = is_trading_day()
+        print(f"📅 {msg}")
+        print()
+        
+        print(f"✅ 成功获取 {len(df)} 只股票的行情数据")
+        print()
+        
+        if not is_trading:
+            print("⚠️  当前为非交易时段，数据为最近一个交易日的正式收盘数据")
+        else:
+            print("⚠️  实时行情数据，仅供参考")
+        
+        print()
+        print("=" * 80)
+        print("🏆 涨幅榜 - 前10只")
+        print("=" * 80)
+        print(f"{'排名':<6}{'代码':<12}{'名称':<12}{'最新价':<12}{'涨跌幅':<16}{'成交量':<12}")
+        print("-" * 80)
+        
+        for i, (_, row) in enumerate(df.head(10).iterrows(), 1):
+            status = "🟢" if row['change_pct'] > 0 else "🔴" if row['change_pct'] < 0 else "⚪"
+            # 强制股票代码为字符串格式输出
+            code_str = format_stock_code(row['code'])
+            print(f"{i:<6}{code_str:<12}{row['name']:<12}¥{row['price']:<11.2f}{status} {row['change_pct']:+.2f}% {row['volume']:<10.0f}万手")
+        
+        # 保存结果前确保股票代码列是字符串格式
+        df['code'] = df['code'].apply(format_stock_code)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        save_path = f"today_gainers_{timestamp}.csv"
+        df.to_csv(save_path, index=False, encoding='utf-8-sig')
+        print()
+        print(f"💾 完整结果已保存到: {Path(__file__).parent / save_path}")
+        
+        print()
+        print("=" * 80)
+        print("⚠️  重要提示")
+        print("=" * 80)
+        print("   - 非交易时段数据为最近一个交易日的正式收盘数据")
+        print("   - 本榜单为沪深300成分股涨幅榜，非全市场涨幅榜")
+        print("   - 投资有风险，入市需谨慎")
+        print("=" * 80)
 
 
 if __name__ == "__main__":

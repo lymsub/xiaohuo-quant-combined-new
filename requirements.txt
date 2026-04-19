@@ -9,7 +9,6 @@ tushare>=1.2.89
 sqlite3
 
 # 视频生成相关
-volcenginesdkarkruntime>=0.0.1
 edge-tts>=6.1.0
 
 # HTTP请求

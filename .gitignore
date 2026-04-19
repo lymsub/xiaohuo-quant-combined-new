@@ -24,7 +24,6 @@ env/
 *.sqlite3
 *.csv
 *.json
-!custom_config.json
 data/
 cache/
 

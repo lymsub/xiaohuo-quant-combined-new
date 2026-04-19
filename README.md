@@ -2,7 +2,7 @@
 
 > 智能投资助手 - 股票筛选、个股分析、收益跟踪、投资报告、早报视频五大能力
 > 
-> 📦 新仓库：[lymsub/xiaohuo-quant-combined-new](https://github.com/lymsub/xiaohuo-quant-combined-new)
+> 📦 仓库：[lymsub/gaokemishu](https://github.com/lymsub/gaokemishu)
 
 ---
 
@@ -25,8 +25,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/lymsub/xiaohuo-quant-combined-2.git
-cd xiaohuo-quant-combined-2
+git clone https://github.com/lymsub/xiaohuo-quant-combined-new.git
+cd xiaohuo-quant-combined-new
 
 # 运行安装脚本
 cd scripts
@@ -526,7 +526,7 @@ python main.py cron list
 ## 📁 项目结构
 
 ```
-xiaohuo-quant-combined/
+gaokemishu/
 ├── scripts/                    # 核心功能脚本
 │   ├── config.py              # 配置管理
 │   ├── data_source.py         # 五数据源管理
