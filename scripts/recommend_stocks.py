@@ -308,8 +308,7 @@ class StockRecommender:
         is_trading, message = is_trading_day()
         if not is_trading:
             print(f"⚠️  {message}")
-            print("返回示例数据...")
-            return self._get_example_recommendations(n)
+            print("返回最近一个交易日的数据...")
         
         # 获取今日涨幅榜（自动复用缓存，无需重复拉取）
         print("📊 正在获取今日涨幅榜（优先读取缓存）...")
@@ -395,11 +394,19 @@ class StockRecommender:
 
 def print_recommendations(recommendations: List[Dict[str, Any]]):
     """格式化打印推荐结果"""
+    # 检查是否是交易日
+    is_trading, message = is_trading_day()
+    
     print("\n" + "="*100)
-    print(" " * 35 + "🔥 今日最佳股票推荐")
+    if is_trading:
+        print(" " * 35 + "🔥 今日最佳股票推荐")
+    else:
+        print(" " * 30 + "🔥 最近一个交易日股票推荐")
     print("="*100)
     print(f"\n📅 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"📊 推荐数量: {len(recommendations)} 只")
+    if not is_trading:
+        print(f"📌 说明: {message}")
     print("\n" + "-"*100)
     
     # 打印表头
