@@ -315,8 +315,8 @@ class StockRecommender:
         df = get_today_gainers(n=50)  # 先获取50只，再从中筛选，自动使用缓存
         
         if df is None or df.empty:
-            print("⚠️  获取涨幅榜失败，返回示例数据...")
-            return self._get_example_recommendations(n)
+            print("❌  获取涨幅榜失败，请检查网络连接或数据源配置...")
+            return []
         
         # 计算每只股票的评分
         print("🔢 正在计算股票评分...")
@@ -351,49 +351,18 @@ class StockRecommender:
         
         # 返回前n只
         return scored_stocks[:n]
-    
-    def _get_example_recommendations(self, n: int = 10) -> List[Dict[str, Any]]:
-        """获取示例推荐数据（用于非交易日）"""
-        examples = [
-            {'股票代码': '600519', '股票名称': '贵州茅台', '最新价': 1680.5, '涨跌幅': 3.25, '成交量': 25000, '成交额': 42000},
-            {'股票代码': '002594', '股票名称': '比亚迪', '最新价': 235.8, '涨跌幅': 2.8, '成交量': 450000, '成交额': 105000},
-            {'股票代码': '300750', '股票名称': '宁德时代', '最新价': 185.6, '涨跌幅': 4.1, '成交量': 320000, '成交额': 59000},
-            {'股票代码': '601318', '股票名称': '中国平安', '最新价': 45.2, '涨跌幅': 1.8, '成交量': 120000, '成交额': 5400},
-            {'股票代码': '000001', '股票名称': '平安银行', '最新价': 12.35, '涨跌幅': 2.1, '成交量': 850000, '成交额': 10500},
-            {'股票代码': '600036', '股票名称': '招商银行', '最新价': 32.8, '涨跌幅': 1.5, '成交量': 520000, '成交额': 17000},
-            {'股票代码': '000858', '股票名称': '五粮液', '最新价': 156.8, '涨跌幅': 2.6, '成交量': 180000, '成交额': 28000},
-            {'股票代码': '601899', '股票名称': '紫金矿业', '最新价': 15.2, '涨跌幅': 3.8, '成交量': 2200000, '成交额': 33000},
-            {'股票代码': '300059', '股票名称': '东方财富', '最新价': 18.5, '涨跌幅': 2.2, '成交量': 1500000, '成交额': 27500},
-            {'股票代码': '600900', '股票名称': '长江电力', '最新价': 28.6, '涨跌幅': 1.2, '成交量': 380000, '成交额': 10800},
-        ]
-        
-        recommendations = []
-        for i, example in enumerate(examples[:n]):
-            # 计算示例评分
-            total_score = 70 + (n - i) * 2 + np.random.randint(0, 10)
-            recommendations.append({
-                '排名': i + 1,
-                '股票代码': example['股票代码'],
-                '股票名称': example['股票名称'],
-                '最新价': example['最新价'],
-                '涨跌幅': example['涨跌幅'],
-                '成交量': example['成交量'],
-                '成交额': example['成交额'],
-                '综合评分': round(total_score, 2),
-                '各维度评分': {
-                    '涨跌幅': round(70 + example['涨跌幅'] * 5, 2),
-                    '成交量': round(50 + example['成交量'] * 0.0001, 2),
-                    '成交额': round(50 + example['成交额'] * 0.001, 2),
-                    '技术指标': round(60 + np.random.randint(-10, 20), 2),
-                    '价格位置': round(55 + np.random.randint(-10, 15), 2)
-                }
-            })
-        
-        return recommendations
 
 
 def print_recommendations(recommendations: List[Dict[str, Any]]):
     """格式化打印推荐结果"""
+    if not recommendations:
+        print("\n" + "="*100)
+        print(" " * 35 + "❌ 获取股票推荐失败")
+        print("="*100)
+        print("\n请检查网络连接或数据源配置...")
+        print("="*100 + "\n")
+        return
+    
     # 检查是否是交易日
     is_trading, message = is_trading_day()
     
@@ -487,23 +456,32 @@ def main():
     # JSON输出模式
     if args.output == 'json':
         # 构建标准化JSON
-        result = {
-            'success': True,
-            'report_type': 'opportunity_scan',
-            'template_name': 'opportunity_scan',
-            'data': {
-                '日期': datetime.now().strftime('%Y-%m-%d'),
-                'is_trading': is_trading,
-                'data_source_date': datetime.now().strftime('%Y-%m-%d') if is_trading 
-                               else (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
-                '推荐列表': recommendations
-            },
-            'metadata': {
-                'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'data_source': '新浪财经 + 本地缓存',
-                'cached': True
+        if not recommendations:
+            result = {
+                'success': False,
+                'error': '获取股票推荐失败，请检查网络连接或数据源配置',
+                'metadata': {
+                    'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
             }
-        }
+        else:
+            result = {
+                'success': True,
+                'report_type': 'opportunity_scan',
+                'template_name': 'opportunity_scan',
+                'data': {
+                    '日期': datetime.now().strftime('%Y-%m-%d'),
+                    'is_trading': is_trading,
+                    'data_source_date': datetime.now().strftime('%Y-%m-%d') if is_trading 
+                                   else (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
+                    '推荐列表': recommendations
+                },
+                'metadata': {
+                    'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'data_source': '新浪财经 + 本地缓存',
+                    'cached': True
+                }
+            }
         
         output_json = json.dumps(result, ensure_ascii=False, indent=2)
         
@@ -519,9 +497,9 @@ def main():
     print_recommendations(recommendations)
     
     # 保存结果
-    if args.output:
+    if args.output and recommendations:
         save_recommendations(recommendations, args.output)
-    else:
+    elif recommendations:
         save_recommendations(recommendations)
 
 
