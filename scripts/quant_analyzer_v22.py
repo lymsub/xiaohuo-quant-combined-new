@@ -852,8 +852,7 @@ def main():
     parser.add_argument('--source', type=str, choices=['tushare', 'akshare'],
                         help='强制使用指定数据源')
     parser.add_argument('--preferred-source', type=str, choices=['tushare', 'akshare'], 
-                        default='tushare',
-                        help='首选数据源（默认tushare）')
+                        help='首选数据源（如果有配置tushare token则默认tushare）')
     parser.add_argument('--no-fallback', action='store_true',
                         help='禁用备用数据源')
     parser.add_argument('--no-database', action='store_true',
@@ -861,10 +860,33 @@ def main():
     
     args = parser.parse_args()
     
-    # 强制使用AkShare数据源，不需要token
-    use_tushare = False
+    # 读取 custom_config.json
+    actual_token = None
     preferred_source = 'akshare'
-    print(f"🔄 已自动切换首选数据源为：AkShare")
+    custom_config = {}
+    try:
+        import os
+        from pathlib import Path
+        script_dir = Path(__file__).parent
+        config_path = script_dir.parent / "custom_config.json"
+        if config_path.exists():
+            import json
+            with open(config_path, "r", encoding="utf-8") as f:
+                custom_config = json.load(f)
+    except Exception as e:
+        print(f"⚠️  读取配置文件失败: {e}")
+    
+    # 如果有 tushare token，优先使用 tushare
+    if custom_config and custom_config.get("tushare", {}).get("api_key"):
+        actual_token = custom_config["tushare"]["api_key"]
+        preferred_source = 'tushare'
+        print(f"✅ 已配置Tushare Token，优先使用Tushare数据源")
+    else:
+        print(f"ℹ️  未配置Tushare Token，使用AkShare数据源")
+    
+    # 如果命令行指定了首选数据源，以命令行为准
+    if args.preferred_source:
+        preferred_source = args.preferred_source
     
     # 标准化股票代码
     ts_code = args.code
@@ -880,9 +902,6 @@ def main():
     print(f"\n🔍 正在分析 {ts_code}，请稍候...\n")
     
     try:
-        # 如果没有 token，只传 None，让数据源管理器自动处理
-        actual_token = None
-        
         with QuantAnalyzer(
             actual_token, 
             use_database=not args.no_database,
