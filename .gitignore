@@ -23,9 +23,11 @@ env/
 *.db
 *.sqlite3
 *.csv
-*.json
 data/
 cache/
+
+# 不忽略配置文件
+!custom_config.json
 
 # Output
 output/
