@@ -1,0 +1,23 @@
+{
+  "douban": {
+    "api_key": ""
+  },
+  "tushare": {
+    "api_key": ""
+  },
+  "cos": {
+    "endpoint": "",
+    "upload_enabled": false
+  },
+  "feishu": {
+    "group_id": "",
+    "push_enabled": false,
+    "webhook": "",
+    "send_video_directly": true
+  },
+  "morning_report": {
+    "enabled": true,
+    "video_enabled": false,
+    "push_enabled": false
+  }
+}
