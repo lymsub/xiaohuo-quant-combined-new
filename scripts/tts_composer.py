@@ -8,6 +8,15 @@ import os
 import subprocess
 import math
 
+def check_ffmpeg():
+    """检查ffmpeg和ffprobe是否可用"""
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+        subprocess.run(["ffprobe", "-version"], capture_output=True, check=True)
+        return True
+    except:
+        return False
+
 # 配置区域
 def get_edge_tts_path():
     """获取edge-tts路径，按优先级查找"""
@@ -124,6 +133,17 @@ def compose_video(video_path, audio_path, output_path=None, target_duration=None
     Returns:
         最终视频路径
     """
+    # 先检查ffmpeg是否可用
+    if not check_ffmpeg():
+        error_msg = "找不到ffmpeg或ffprobe，无法合成视频"
+        print(error_msg)
+        print("\n💡 请先安装ffmpeg:")
+        print("   macOS: brew install ffmpeg")
+        print("   Ubuntu/Debian: sudo apt-get install ffmpeg")
+        print("   CentOS: sudo yum install ffmpeg")
+        print("   Windows: 下载 https://ffmpeg.org/download.html")
+        raise Exception(error_msg)
+    
     init_dirs()
     if not output_path:
         output_path = os.path.join(CONFIG["output_dir"], CONFIG["default_final_name"])
@@ -141,7 +161,7 @@ def compose_video(video_path, audio_path, output_path=None, target_duration=None
         target_duration = float(duration_result.stdout.strip())
     
     # 循环背景视频并合并音频
-    print(f"正在合成视频，目标时长：{target_duration:.1f}秒...")
+    print(f"正在使用ffmpeg合成视频，目标时长：{target_duration:.1f}秒...")
     # 输入顺序：第一个输入是视频（索引0），第二个输入是音频（索引1）
     cmd = [
         "ffmpeg", "-y",
@@ -157,10 +177,21 @@ def compose_video(video_path, audio_path, output_path=None, target_duration=None
         output_path
     ]
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"视频合成失败：{result.stderr}")
-        raise Exception(f"视频合成失败：{result.stderr}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            error_msg = f"视频合成失败：{result.stderr}"
+            print(error_msg)
+            raise Exception(error_msg)
+    except FileNotFoundError:
+        error_msg = "找不到ffmpeg命令"
+        print(error_msg)
+        print("\n💡 请先安装ffmpeg:")
+        print("   macOS: brew install ffmpeg")
+        print("   Ubuntu/Debian: sudo apt-get install ffmpeg")
+        print("   CentOS: sudo yum install ffmpeg")
+        print("   Windows: 下载 https://ffmpeg.org/download.html")
+        raise Exception(error_msg)
     
     print(f"视频合成成功，路径：{output_path}")
     return output_path
