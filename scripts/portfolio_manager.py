@@ -49,8 +49,8 @@ class PortfolioManager:
     
     def _get_today_open_price(self, ts_code: str) -> Optional[float]:
         """
-        获取真实开盘价（优先用最近一个交易日的开盘价，非交易日也能正常获取）
-        多数据源自动降级：Baostock → AkShare → 数据管理器
+        获取最近一个交易日的开盘价（非交易日也能正常获取）
+        多数据源自动降级：数据管理器 → Baostock → AkShare
         
         Args:
             ts_code: 股票代码
@@ -60,18 +60,34 @@ class PortfolioManager:
         """
         from datetime import date, timedelta
         today = date.today()
-        start_date = today - timedelta(days=10)  # 查询最近10天的数据
+        start_date = today - timedelta(days=5)  # 只需要查最近5天即可（覆盖周末）
         
-        # 先转换代码格式
-        code = ts_code
-        if '.' in code:
-            code = code.split('.')[0]
+        # 第一数据源：数据管理器（最优先，已有的数据源）
+        try:
+            df, source = self.data_source.get_daily_quotes(
+                ts_code, 
+                start_date.strftime('%Y%m%d'), 
+                today.strftime('%Y%m%d')
+            )
+            
+            if df is not None and len(df) > 0 and 'open' in df.columns:
+                # 直接取最后一条数据（最近的交易日）
+                open_price = df.iloc[-1]['open']
+                if open_price and float(open_price) > 0:
+                    return float(open_price)
+            
+        except Exception as e:
+            print(f"⚠️  数据管理器获取 {ts_code} 开盘价失败，尝试Baostock: {e}")
         
-        # 第一数据源：Baostock日K数据（最稳定）
+        # 第二数据源：Baostock日K数据（备用）
         try:
             import baostock as bs
             
-            # 转换代码格式为Baostock格式
+            # 转换代码格式
+            code = ts_code
+            if '.' in code:
+                code = code.split('.')[0]
+            
             if code.startswith('6'):
                 bs_code = f'sh.{code}'
             else:
@@ -79,14 +95,12 @@ class PortfolioManager:
             
             # 登录Baostock
             lg = bs.login()
-            if lg.error_code != '0':
-                print(f"⚠️  Baostock登录失败: {lg.error_msg}")
-            else:
-                # 查询最近10天的日K数据
+            if lg.error_code == '0':
+                # 查询最近5天的数据
                 rs = bs.query_history_k_data_plus(bs_code, 
-                    'date,open',
-                    start_date=start_date.strftime('%Y-%m-%d'), 
-                    end_date=today.strftime('%Y-%m-%d'),
+                    'open',
+                    start_date.strftime('%Y-%m-%d'), 
+                    today.strftime('%Y-%m-%d'),
                     frequency='d', adjustflag='3')
                 
                 data_list = []
@@ -95,38 +109,21 @@ class PortfolioManager:
                 
                 bs.logout()
                 
-                # 找到最近一天有开盘价的数据
-                for row in reversed(data_list):
-                    if row[1] and float(row[1]) > 0:
-                        return float(row[1])
+                # 直接取最后一条有数据的
+                if data_list:
+                    for row in reversed(data_list):
+                        if row[0] and float(row[0]) > 0:
+                            return float(row[0])
             
         except Exception as e:
-            print(f"⚠️  Baostock获取 {ts_code} 开盘价失败，尝试数据管理器: {e}")
+            print(f"⚠️  Baostock获取 {ts_code} 开盘价失败，尝试AkShare: {e}")
         
-        # 第二数据源：数据管理器（data_source.get_daily_quotes）
-        try:
-            end_date = today
-            start_date_10 = end_date - timedelta(days=10)
-            
-            df, source = self.data_source.get_daily_quotes(
-                ts_code, 
-                start_date_10.strftime('%Y%m%d'), 
-                end_date.strftime('%Y%m%d')
-            )
-            
-            if df is not None and len(df) > 0 and 'open' in df.columns:
-                # 获取最近一天的开盘价
-                for i in reversed(range(len(df))):
-                    open_price = df.iloc[i]['open']
-                    if open_price and float(open_price) > 0:
-                        return float(open_price)
-            
-        except Exception as e:
-            print(f"⚠️  数据管理器获取 {ts_code} 开盘价失败，尝试AkShare: {e}")
-        
-        # 第三数据源：AkShare日线数据
+        # 第三数据源：AkShare日线数据（最后的备用）
         try:
             import akshare as ak
+            code = ts_code
+            if '.' in code:
+                code = code.split('.')[0]
             
             df = ak.stock_zh_a_hist(
                 symbol=code, 
@@ -137,10 +134,10 @@ class PortfolioManager:
             )
             
             if df is not None and len(df) > 0 and '开盘' in df.columns:
-                for i in reversed(range(len(df))):
-                    open_price = df.iloc[i]['开盘']
-                    if open_price and float(open_price) > 0:
-                        return float(open_price)
+                # 直接取最后一条数据
+                open_price = df.iloc[-1]['开盘']
+                if open_price and float(open_price) > 0:
+                    return float(open_price)
             
         except Exception as e:
             print(f"⚠️  AkShare获取 {ts_code} 开盘价失败: {e}")
